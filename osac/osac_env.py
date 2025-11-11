@@ -34,18 +34,21 @@ class OSAC_V2X_Env(setup.gym.Env):
         self.clock = None
         
         # Define the State Space (Observation Space)
-        # 12-dimensional continuous state vector:
+        # 14-dimensional continuous state vector (12 old + 2 new):
         # [Car1_x, Car1_y, Car1_vx, Car1_vy, Car2_x, Car2_y, Car2_vx, Car2_vy, 
-        #  Current_Beam_Angle_V2V, Current_Beam_Angle_V2I, Last_SNR_V2V, Last_SNR_V2I]
+        #  Current_Beam_Angle_V2V, Current_Beam_Angle_V2I, Last_SNR_V2V, Last_SNR_V2I,
+        #  Predicted_LoS_V2V, Predicted_LoS_V2I]  <--- NEW
         low_obs = np.array([
             0.0, 0.0, -self.C.CAR_SPEED, -self.C.CAR_SPEED,  # Car 1 state (Position/Velocity)
             0.0, 0.0, -self.C.CAR_SPEED, -self.C.CAR_SPEED,  # Car 2 state (Position/Velocity)
-            -np.pi, -np.pi, 0.0, 0.0                          # Angles (rad) & SNR (dB)
+            -np.pi, -np.pi, 0.0, 0.0,                       # Angles (rad) & SNR (dB)
+            -np.pi, -np.pi                                  # <--- NEW: Predicted LoS Angles
         ], dtype=np.float32)
         high_obs = np.array([
             self.C.MAP_SIZE, self.C.MAP_SIZE, self.C.CAR_SPEED, self.C.CAR_SPEED,
             self.C.MAP_SIZE, self.C.MAP_SIZE, self.C.CAR_SPEED, self.C.CAR_SPEED,
-            np.pi, np.pi, 50.0, 50.0                          # Angles (rad) & SNR (dB) (Max realistic SNR)
+            np.pi, np.pi, 50.0, 50.0,                       # Angles (rad) & SNR (dB) (Max realistic SNR)
+            np.pi, np.pi                                    # <--- NEW: Predicted LoS Angles
         ], dtype=np.float32)
         self.observation_space = spaces.Box(low=low_obs, high=high_obs, dtype=np.float32)
 
@@ -68,6 +71,9 @@ class OSAC_V2X_Env(setup.gym.Env):
         self.car1_beam_angles = None # [V2V_angle, V2I_angle] in radians
         self.last_snr_v2v = 0.0
         self.last_snr_v2i = 0.0
+        
+        # --- NEW: Internal variable for Prediction ---
+        self.predicted_los_angles = np.array([0.0, 0.0], dtype=np.float32)
 
     # --- 2.1 OSAC/Optical Channel Model (Simplified) ---
     def _calculate_osac_snr(self, tx_pos, tx_angle, rx_pos):
@@ -115,7 +121,8 @@ class OSAC_V2X_Env(setup.gym.Env):
             self.car1_pos, self.car1_vel,
             self.car2_pos, self.car2_vel,
             self.car1_beam_angles,
-            np.array([self.last_snr_v2v, self.last_snr_v2i])
+            np.array([self.last_snr_v2v, self.last_snr_v2i]),
+            self.predicted_los_angles # <--- NEW: The agent now sees the explicit prediction!
         ]).astype(np.float32)
         return obs
 
@@ -127,6 +134,35 @@ class OSAC_V2X_Env(setup.gym.Env):
             "distance_v2v": np.linalg.norm(self.car2_pos - self.car1_pos),
             "distance_v2i": np.linalg.norm(self.C.RSU_POS - self.car1_pos)
         }
+    
+    # --- 2.1.5 New Helper: Explicit Next-State Prediction (Sensing Unit) ---
+    def _predict_next_los(self):
+        """
+        Calculates the predicted Line-of-Sight (LoS) angle to Car 2 and RSU 
+        at the next time step (t + delta_t). This is the 'Sensing' function.
+        """
+        dt = self.C.TIME_STEP
+        
+        # --- V2V Prediction ---
+        # Predict Car 1's position at t + dt
+        pred_pos_1 = self.car1_pos + self.car1_vel * dt
+        # Predict Car 2's position at t + dt
+        pred_pos_2 = self.car2_pos + self.car2_vel * dt
+        
+        # Predicted vector and angle for V2V
+        pred_dist_vec_v2v = pred_pos_2 - pred_pos_1
+        pred_angle_v2v = math.atan2(pred_dist_vec_v2v[1], pred_dist_vec_v2v[0])
+
+        # --- V2I Prediction (RSU) ---
+        # RSU is stationary, only Car 1 moves
+        pred_pos_rsu = self.C.RSU_POS
+        
+        # Predicted vector and angle for V2I
+        pred_dist_vec_v2i = pred_pos_rsu - pred_pos_1
+        pred_angle_v2i = math.atan2(pred_dist_vec_v2i[1], pred_dist_vec_v2i[0])
+        
+        self.predicted_los_angles = np.array([pred_angle_v2v, pred_angle_v2i], dtype=np.float32)
+        return self.predicted_los_angles
 
     # --- 2.3 Reset Function (UPDATED: New Road Scenario) ---
     def reset(self, seed=None, options=None):
@@ -240,6 +276,8 @@ class OSAC_V2X_Env(setup.gym.Env):
         # D. Beam Change Penalty (Small cost for movement)
         angle_change = self.action_to_angle_change[action]
         R_Penalty_Change = -0.5 * np.sum(angle_change ** 2)
+        
+        self._predict_next_los()
         
         # Combine rewards
         reward = R_Incentive + R_Bonus + R_Penalty_Misalignment + R_Penalty_Change
