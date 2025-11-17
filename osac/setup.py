@@ -11,7 +11,7 @@ class OSACEnvConstants:
     MAX_EPISODE_STEPS = 500
 
     # Car/Mobility Parameters
-    CAR_SPEED = 10.0  # m/s (approx 36 km/h)
+    CAR_SPEED = 5.0  # m/s (approx 36 km/h)
     MAX_TURN_ANGLE = np.pi / 36 # Max 5 degree turn per step
 
     # Optical/OSAC Parameters

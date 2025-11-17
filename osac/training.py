@@ -1,11 +1,11 @@
-import osac_env
+import osac_env01
 import time
 
 # --- 4.2 Training the PPO Agent ---
 from stable_baselines3 import PPO
 
 # Recreate the environment instance
-env = osac_env.OSAC_V2X_Env()
+env = osac_env01.OSAC_V2X_Env()
 
 # Initialize the PPO agent with a Multi-Layer Perceptron (MlpPolicy)
 # policy: "MlpPolicy" (a standard feedforward neural network)
@@ -29,7 +29,7 @@ PPO_params = {
     # Use a large batch size if possible (1024 or 2048)
     "n_steps": 2048 
 }
-model = PPO("MlpPolicy", env, verbose=1, **PPO_params,tensorboard_log="./osac_rl_log/", device = "cuda")
+model = PPO("MlpPolicy", env, verbose=1, **PPO_params,tensorboard_log="./osac_rl_log/", device = "cpu")
 
 print("\n--- Starting RL Training ---")
 start_time = time.time()
