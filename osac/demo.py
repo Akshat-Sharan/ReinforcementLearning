@@ -3,7 +3,7 @@
 import gymnasium as gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
-from osac_env01 import OSAC_V2X_Env # Make sure this path is correct
+from osac_env02 import OSAC_V2X_Env # Make sure this path is correct
 import numpy as np
 
 # --- 1. Configuration ---
