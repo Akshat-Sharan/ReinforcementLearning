@@ -1,11 +1,11 @@
-import osac_env
+import osac_env02
 import gymnasium as gym
 from sb3_contrib import TRPO  # Import from contrib
 import os
 
 # 1. Setup Directories
-models_dir = "models/TRPO_Phase3"
-logdir = "osac_rl_log"
+models_dir = "osac"
+logdir = "osac_rl_log_TRPO"
 
 if not os.path.exists(models_dir):
     os.makedirs(models_dir)
@@ -14,7 +14,7 @@ if not os.path.exists(logdir):
     os.makedirs(logdir)
 
 # 2. Environment
-env = osac_env.OSAC_V2X_Env()
+env = osac_env02.OSAC_V2X_Env()
 
 # 3. Model
 # TRPO is very stable for continuous control
@@ -23,7 +23,7 @@ model = TRPO(
     env, 
     verbose=1, 
     tensorboard_log=logdir, 
-    device="cuda",
+    device="cpu",
     learning_rate=1e-3
 )
 

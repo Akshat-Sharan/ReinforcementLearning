@@ -1,11 +1,11 @@
-import osac_env
+import osac_env02
 import gymnasium as gym
 from stable_baselines3 import A2C
 import os
 
 # 1. Setup Directories
-models_dir = "models/A2C_Phase3"
-logdir = "osac_rl_log"
+models_dir = "osac"
+logdir = "osac_rl_log_A2C"
 
 if not os.path.exists(models_dir):
     os.makedirs(models_dir)
@@ -14,7 +14,7 @@ if not os.path.exists(logdir):
     os.makedirs(logdir)
 
 # 2. Environment
-env = osac_env.OSAC_V2X_Env()
+env = osac_env02.OSAC_V2X_Env()
 
 # 3. Model
 # A2C is faster per step but might require more samples to converge
@@ -23,7 +23,7 @@ model = A2C(
     env, 
     verbose=1, 
     tensorboard_log=logdir, 
-    device="cuda",
+    device="cpu",
     ent_coef=0.0,    # Entropy coefficient for exploration
     learning_rate=7e-4
 )

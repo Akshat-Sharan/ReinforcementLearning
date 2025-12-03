@@ -1,11 +1,11 @@
-import osac_env
+import osac_env02
 import gymnasium as gym
 from stable_baselines3 import SAC
 import os
 
 # 1. Setup Directories
-models_dir = "models/SAC_Phase3"
-logdir = "osac_rl_log"
+models_dir = "osac"
+logdir = "osac_rl_log_SAC"
 
 if not os.path.exists(models_dir):
     os.makedirs(models_dir)
@@ -14,7 +14,7 @@ if not os.path.exists(logdir):
     os.makedirs(logdir)
 
 # 2. Environment
-env = osac_env.OSAC_V2X_Env()
+env = osac_env02.OSAC_V2X_Env()
 
 # 3. Model
 # SAC is off-policy and entropy-regularized.
@@ -24,7 +24,7 @@ model = SAC(
     env, 
     verbose=1, 
     tensorboard_log=logdir, 
-    device="cuda",
+    device="cpu",
     learning_rate=3e-4,
     buffer_size=100000,
     batch_size=256,

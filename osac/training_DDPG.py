@@ -1,4 +1,4 @@
-import osac_env
+import osac_env02
 import gymnasium as gym
 import numpy as np
 from stable_baselines3 import DDPG
@@ -6,8 +6,8 @@ from stable_baselines3.common.noise import NormalActionNoise
 import os
 
 # 1. Create Directories for Saving Models and Logs
-models_dir = "models/DDPG_Phase3"
-logdir = "osac_rl_log"
+models_dir = "osac"
+logdir = "osac_rl_log_DDPG"
 
 if not os.path.exists(models_dir):
     os.makedirs(models_dir)
@@ -16,7 +16,7 @@ if not os.path.exists(logdir):
     os.makedirs(logdir)
 
 # 2. Initialize the Environment (Phase 3)
-env = osac_env.OSAC_V2X_Env()
+env = osac_env02.OSAC_V2X_Env()
 
 # Verify that the action space is continuous (Box)
 # DDPG will throw an error if this is Discrete
@@ -38,7 +38,7 @@ model = DDPG(
     action_noise=action_noise, 
     verbose=1, 
     tensorboard_log=logdir,
-    device="cuda",          # Uses your RTX 4070
+    device="cpu",          # Uses your RTX 4070
     learning_rate=1e-3,     # Standard LR for DDPG
     buffer_size=200000,     # Store last 200k steps
     learning_starts=1000,   # Warmup steps
