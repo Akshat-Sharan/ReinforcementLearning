@@ -1,7 +1,6 @@
 import numpy as np
 import math
-from osac_env import OSAC_V2X_Env # Imports your environment
-# No need for Stable-Baselines3 (PPO) here, as this is the non-RL comparison
+from osac_env02 import OSAC_V2X_Env # Imports your Phase 5 environment
 
 ## 1. Helper Function: Calculate Ideal Angle (LoS)
 def calculate_los_angle(tx_pos, rx_pos):
@@ -9,52 +8,48 @@ def calculate_los_angle(tx_pos, rx_pos):
     dist_vec = rx_pos - tx_pos
     return math.atan2(dist_vec[1], dist_vec[0])
 
-## 2. Baseline Agent Logic
+## 2. Baseline Agent Logic (Continuous)
 def baseline_predict(env):
     """
-    Predicts the 'greedy' best discrete action by choosing the action
-    that results in the minimum total misalignment with the LoS angles.
+    Predicts the 'greedy' continuous action.
+    It calculates the exact difference between the current beam angle and the
+    ideal LoS angle, and tries to turn that amount (limited by MAX_SLEW_RATE).
     """
     
-    # Get current LoS angles
+    # 1. Get Ideal LoS Angles
     los_v2v = calculate_los_angle(env.car1_pos, env.car2_pos)
     los_v2i = calculate_los_angle(env.car1_pos, env.C.RSU_POS)
     
     current_angles = env.car1_beam_angles # [V2V_angle, V2I_angle]
     
-    best_action = 4 # Default to 'No change'
-    min_misalignment = float('inf')
-
-    # Iterate through all 5 discrete actions
-    for action in env.action_to_angle_change:
-        angle_change = env.action_to_angle_change[action]
-        
-        # Calculate resulting angles if this action is taken
-        new_v2v = current_angles[0] + angle_change[0]
-        new_v2i = current_angles[1] + angle_change[1]
-        
-        # Calculate misalignment with LoS for V2V and V2I
-        misalignment_v2v = abs(new_v2v - los_v2v)
-        misalignment_v2i = abs(new_v2i - los_v2i)
-        
-        # Normalize angle error to [-pi, pi] for both links
-        misalignment_v2v = min(misalignment_v2v, 2 * np.pi - misalignment_v2v)
-        misalignment_v2i = min(misalignment_v2i, 2 * np.pi - misalignment_v2i)
-        
-        # Total squared misalignment (the baseline agent tries to minimize this)
-        total_misalignment = misalignment_v2v**2 + misalignment_v2i**2
-        
-        if total_misalignment < min_misalignment:
-            min_misalignment = total_misalignment
-            best_action = action
-            
-    return best_action
+    # 2. Calculate Required Change (Delta)
+    # We want: current + delta = ideal  =>  delta = ideal - current
+    delta_v2v = los_v2v - current_angles[0]
+    delta_v2i = los_v2i - current_angles[1]
+    
+    # Normalize deltas to [-pi, pi] so we turn the short way
+    delta_v2v = math.atan2(math.sin(delta_v2v), math.cos(delta_v2v))
+    delta_v2i = math.atan2(math.sin(delta_v2i), math.cos(delta_v2i))
+    
+    # 3. Scale to Action Space [-1, 1]
+    # The environment multiplies action * MAX_SLEW_RATE.
+    # So we need to divide our desired delta by MAX_SLEW_RATE.
+    
+    action_v2v = delta_v2v / env.C.MAX_SLEW_RATE
+    action_v2i = delta_v2i / env.C.MAX_SLEW_RATE
+    
+    # 4. Clip to Valid Range [-1, 1]
+    action_v2v = np.clip(action_v2v, -1.0, 1.0)
+    action_v2i = np.clip(action_v2i, -1.0, 1.0)
+    
+    return np.array([action_v2v, action_v2i], dtype=np.float32)
 
 ## 3. Evaluation Loop
-def evaluate_baseline(env, num_episodes=10):
+def evaluate_baseline(env, num_episodes=4000):
     all_rewards = []
     
-    print("\n--- Running Baseline Demonstration (Greedy Tracker) ---")
+    print("\n--- Running Baseline Demonstration (Continuous Greedy Tracker) ---")
+    
     for episode in range(num_episodes):
         obs, info = env.reset()
         done = False
@@ -72,9 +67,14 @@ def evaluate_baseline(env, num_episodes=10):
             total_reward += reward
             step_count += 1
             
-            if step_count % 100 == 0:
-                 print(f"Ep {episode+1}, Step {step_count}: V2V SNR: {info['snr_v2v']:.2f} dB, V2I SNR: {info['snr_v2i']:.2f} dB, Total Reward: {total_reward:.2f}")
-
+            # Optional: Visual rendering
+            # env.render() 
+            
+            if step_count % 50 == 0:
+                 # Calculate misalignment for display
+                 v2v_err = abs(info.get('snr_v2v', 0)) # Just using SNR as proxy for connection quality
+                 # Note: Real error calc is inside env, this is just progress log
+        
         all_rewards.append(total_reward)
         print(f"Episode {episode+1} Finished. Total Reward: {total_reward:.2f}")
 
@@ -84,7 +84,7 @@ def evaluate_baseline(env, num_episodes=10):
 
 
 if __name__ == "__main__":
-    # Initialize the environment for evaluation (render_mode=None for faster testing)
-    baseline_env = OSAC_V2X_Env(render_mode=None) 
+    # Initialize the environment
+    baseline_env = OSAC_V2X_Env(render_mode="human") # Set to "human" if you want to see it
     evaluate_baseline(baseline_env, num_episodes=10) 
     baseline_env.close()

@@ -1,70 +1,74 @@
-import osac_env02
+import osac_env04
 import gymnasium as gym
 import numpy as np
 from stable_baselines3 import DDPG
 from stable_baselines3.common.noise import NormalActionNoise
+import time
 import os
 
-# 1. Create Directories for Saving Models and Logs
-models_dir = "osac"
+# 1. Setup Logging Directory
 logdir = "osac_rl_log_DDPG"
-
-if not os.path.exists(models_dir):
-    os.makedirs(models_dir)
 
 if not os.path.exists(logdir):
     os.makedirs(logdir)
 
-# 2. Initialize the Environment (Phase 3)
-env = osac_env02.OSAC_V2X_Env()
+# 2. Environment
+env = osac_env04.OSAC_V2X_Env()
 
-# Verify that the action space is continuous (Box)
-# DDPG will throw an error if this is Discrete
+# Verify Action Space
 print(f"Action Space: {env.action_space}")
 assert isinstance(env.action_space, gym.spaces.Box), "DDPG requires a Continuous (Box) Action Space!"
 
-# 3. Define Action Noise for Exploration
-# Since DDPG is deterministic, we add Gaussian noise to the actions during training.
-# sigma=0.2 means noise is 20% of the action range standard deviation.
+# 3. Define Action Noise
+# DDPG is deterministic, so we add noise for exploration
 n_actions = env.action_space.shape[-1]
 action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.2 * np.ones(n_actions))
 
-# 4. Initialize the DDPG Model
-# - buffer_size: Size of the Replay Buffer (DDPG needs memory of past events)
-# - learning_starts: How many steps to collect before updating weights (warm-up)
+# 4. Model
+print("--- Initializing DDPG Model ---")
+# Ensure action_noise is defined!
+# n_actions = env.action_space.shape[-1]
+# action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.2 * np.ones(n_actions))
+
 model = DDPG(
     "MlpPolicy", 
     env, 
     action_noise=action_noise, 
     verbose=1, 
     tensorboard_log=logdir,
-    device="cpu",          # Uses your RTX 4070
-    learning_rate=1e-3,     # Standard LR for DDPG
-    buffer_size=200000,     # Store last 200k steps
-    learning_starts=1000,   # Warmup steps
-    batch_size=128,
-    gamma=0.99,             # Discount factor
-    tau=0.005               # Soft update coefficient
+    device="cuda",          
+    
+    # *** OPTIMIZATION 1: Lower Learning Rate ***
+    # Standard 1e-3 is too aggressive for the new 0.3 Slew Rate. 
+    # 3e-4 prevents the beam from oscillating wildly.
+    learning_rate=3e-4,     
+    
+    buffer_size=200000,     
+    
+    # *** OPTIMIZATION 2: Extended Warmup ***
+    # 1,000 steps is too short. 10,000 ensures the buffer has examples 
+    # of braking, crossing, and accelerating before training starts.
+    learning_starts=10000,   
+    
+    batch_size=128,         
+    gamma=0.99, 
+    tau=0.005
 )
+# 5. Training
+TOTAL_TIMESTEPS = 5000000 
 
-# 5. Training Loop
-# We train in chunks to save the model periodically
-TIMESTEPS = 20000
-TOTAL_TIMESTEPS = 5000000 # Your goal of 5 million steps
-iters = 0
+print(f"--- Starting DDPG Training for {TOTAL_TIMESTEPS} timesteps ---")
+start_time = time.time()
 
-print(f"--- Starting DDPG Training on {model.device} ---")
+# Single learn call for the entire duration
+model.learn(total_timesteps=TOTAL_TIMESTEPS, tb_log_name="DDPG_Phase3")
 
-while iters * TIMESTEPS < TOTAL_TIMESTEPS:
-    iters += 1
-    
-    # tb_log_name organizes the logs in TensorBoard under "DDPG_Phase3"
-    model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, tb_log_name="DDPG_Phase3")
-    
-    # Save the model
-    save_path = f"{models_dir}/{TIMESTEPS*iters}"
-    model.save(save_path)
-    print(f"Iteration {iters}: Saved model to {save_path}")
+# 6. Save Final Model
+save_name = "osac_beam_tracker_ddpg"
+model.save(save_name)
 
-print("--- Training Complete ---")
+end_time = time.time()
+print(f"--- Training Complete in {end_time - start_time:.2f} seconds. ---")
+print(f"--- Final Model Saved as {save_name}.zip ---")
+
 env.close()

@@ -10,8 +10,8 @@ class OSACEnvConstants:
     MAP_SIZE = 100.0          
     TIME_STEP = 0.05          
     CAR_SPEED_MAX = 15.0      
-    CAR_ACCEL_MAX = 4.0       # Strong braking power
-    MAX_SLEW_RATE = 0.1       
+    CAR_ACCEL_MAX = 4.0       
+    MAX_SLEW_RATE = 0.3     
 
     # --- Phase 2: Real-World Channel Constants ---
     TURBULENCE_SIGMA = 0.2    
@@ -35,7 +35,7 @@ class OSACEnvConstants:
     RSU_COLOR = (255, 0, 0)       
     CAR_1_COLOR = (0, 0, 255)     
     CAR_2_COLOR = (0, 255, 0)     
-    BEAM_COLOR = (255, 165, 0)    # Orange/Yellow
+    BEAM_COLOR = (255, 165, 0)    
     LOS_COLOR = (0, 0, 0)         
     ROAD_COLOR = (50, 50, 50)     
     LANE_MARKER_COLOR = (255, 255, 255) 
@@ -48,7 +48,7 @@ class OSACEnvConstants:
 
 class OSAC_V2X_Env(setup.gym.Env):
     """
-    Phase 5 Final: Crossroad + AEB + Stochastic Velocity + LABELS FIXED
+    Phase 6: Trigonometric Observation Encoding (Solves the 360-spin issue)
     """
     metadata = {"render_modes": ["human"], "render_fps": 30}
 
@@ -72,20 +72,14 @@ class OSAC_V2X_Env(setup.gym.Env):
         self.window = None
         self.clock = None
         
-        # Observation Space (14-dim)
-        low_obs = np.array([
-            0.0, 0.0, -self.C.CAR_SPEED_MAX, -self.C.CAR_SPEED_MAX,  
-            0.0, 0.0, -self.C.CAR_SPEED_MAX, -self.C.CAR_SPEED_MAX,  
-            -np.pi, -np.pi, 0.0, 0.0,                        
-            -np.pi, -np.pi                                   
-        ], dtype=np.float32)
+        # --- NEW OBSERVATION SPACE (18-dim) ---
+        # Replaced raw Angles (2) with Sin/Cos (4)
+        # Replaced raw Prediction (2) with Sin/Cos (4)
+        # [C1_pos(2), C1_vel(2), C2_pos(2), C2_vel(2), SNR(2), Beam_Sin(2), Beam_Cos(2), Pred_Sin(2), Pred_Cos(2)]
         
-        high_obs = np.array([
-            self.C.MAP_SIZE, self.C.MAP_SIZE, self.C.CAR_SPEED_MAX, self.C.CAR_SPEED_MAX,
-            self.C.MAP_SIZE, self.C.MAP_SIZE, self.C.CAR_SPEED_MAX, self.C.CAR_SPEED_MAX,
-            np.pi, np.pi, 50.0, 50.0,                        
-            np.pi, np.pi                                     
-        ], dtype=np.float32)
+        # Min/Max bounds are generic float bounds now
+        low_obs = np.full(18, -np.inf, dtype=np.float32)
+        high_obs = np.full(18, np.inf, dtype=np.float32)
         
         self.observation_space = spaces.Box(low=low_obs, high=high_obs, dtype=np.float32)
         self.action_space = spaces.Box(low=np.array([-1.0, -1.0]), high=np.array([1.0, 1.0]), dtype=np.float32)
@@ -154,12 +148,19 @@ class OSAC_V2X_Env(setup.gym.Env):
         return max(0.0, true_snr_dB + measurement_noise)
         
     def _get_obs(self):
+        # --- NEW OBSERVATION CONSTRUCTION (Trig Encoding) ---
+        beam_sin = np.sin(self.car1_beam_angles)
+        beam_cos = np.cos(self.car1_beam_angles)
+        
+        pred_sin = np.sin(self.predicted_los_angles)
+        pred_cos = np.cos(self.predicted_los_angles)
+        
         obs = np.concatenate([
             self.car1_pos, self.car1_vel,
             self.car2_pos, self.car2_vel,
-            self.car1_beam_angles,
             np.array([self.last_snr_v2v, self.last_snr_v2i]),
-            self.predicted_los_angles 
+            beam_sin, beam_cos,
+            pred_sin, pred_cos
         ]).astype(np.float32)
         return obs
 
@@ -194,7 +195,6 @@ class OSAC_V2X_Env(setup.gym.Env):
         start_x_1 = self.np_random.uniform(0.0, 5.0)
         start_y_1 = self.np_random.uniform(48.0, 52.0) 
         self.car1_pos = np.array([start_x_1, start_y_1], dtype=np.float32)
-        # Random initial speed (No Cruise Control Target)
         speed_1 = self.np_random.uniform(5.0, 10.0) 
         self.car1_vel = np.array([speed_1, self.np_random.uniform(-0.1, 0.1)], dtype=np.float32)
         
@@ -202,7 +202,6 @@ class OSAC_V2X_Env(setup.gym.Env):
         start_x_2 = self.np_random.uniform(48.0, 52.0)
         start_y_2 = self.np_random.uniform(0.0, 5.0)
         self.car2_pos = np.array([start_x_2, start_y_2], dtype=np.float32)
-        # Random initial speed
         speed_2 = self.np_random.uniform(5.0, 10.0) 
         self.car2_vel = np.array([self.np_random.uniform(-0.1, 0.1), speed_2], dtype=np.float32)
 
@@ -245,45 +244,33 @@ class OSAC_V2X_Env(setup.gym.Env):
         approaching_2 = 0 < dist_2_y < 35.0  
         self.is_braking = False 
         
-        # --- A. STOCHASTIC ACCELERATION (Variable Velocity) ---
         acc_1_cmd = self.car1_acc + np.random.normal(0, 0.3, 2)
         acc_2_cmd = self.car2_acc + np.random.normal(0, 0.3, 2)
-        
-        acc_1_cmd *= 0.9 # Dampen acceleration
+        acc_1_cmd *= 0.9 
         acc_2_cmd *= 0.9
 
-        # --- B. Automatic Emergency Braking (AEB) ---
         if approaching_1 and approaching_2:
             tta_1 = dist_1_x / max(self.car1_vel[0], 0.1)
             tta_2 = dist_2_y / max(self.car2_vel[1], 0.1)
             
             if abs(tta_1 - tta_2) < 2.5:
-                # Car 1 Yields (Override Stochastic Accel)
                 acc_1_cmd = np.array([-self.C.CAR_ACCEL_MAX, 0.0])
                 self.is_braking = True
         
-        # --- C. "Green Light Kick" (Restart Logic) ---
         if not self.is_braking and self.car1_vel[0] < 0.5:
              acc_1_cmd = np.array([2.0, 0.0]) 
 
-        # Apply Physics
         self.car1_acc = acc_1_cmd
         self.car2_acc = acc_2_cmd
-        
         self.car1_acc = np.clip(self.car1_acc, -self.C.CAR_ACCEL_MAX, self.C.CAR_ACCEL_MAX)
         self.car2_acc = np.clip(self.car2_acc, -self.C.CAR_ACCEL_MAX, self.C.CAR_ACCEL_MAX)
 
         self.car1_vel += self.car1_acc * self.C.TIME_STEP
         self.car2_vel += self.car2_acc * self.C.TIME_STEP
-        
-        # Road Keeping
         self.car1_vel[1] *= 0.90
         self.car2_vel[0] *= 0.90 
-
-        # Clip Speed
         self.car1_vel[0] = max(0.0, min(self.car1_vel[0], self.C.CAR_SPEED_MAX))
         self.car2_vel[1] = max(0.0, min(self.car2_vel[1], self.C.CAR_SPEED_MAX))
-        
         self.car1_pos += self.car1_vel * self.C.TIME_STEP
         self.car2_pos += self.car2_vel * self.C.TIME_STEP
         
@@ -321,7 +308,7 @@ class OSAC_V2X_Env(setup.gym.Env):
 
         return self._get_obs(), reward, terminated, False, self._get_info()
 
-    # --- Render Helpers ---
+    # --- Visualization (Labels & Beams) ---
     def _draw_text(self, canvas, text, color, pos):
         if not pygame.get_init(): pygame.init()
         try:
@@ -351,7 +338,7 @@ class OSAC_V2X_Env(setup.gym.Env):
             pygame.init()
             pygame.display.init()
             self.window = pygame.display.set_mode((OSACEnvConstants.WINDOW_SIZE, OSACEnvConstants.WINDOW_SIZE))
-            pygame.display.set_caption("OSAC Beam Tracking - Phase 5")
+            pygame.display.set_caption("OSAC Beam Tracking - Phase 6 (Trig Obs)")
         if self.clock is None: self.clock = pygame.time.Clock()
 
         canvas = pygame.Surface((OSACEnvConstants.WINDOW_SIZE, OSACEnvConstants.WINDOW_SIZE))
@@ -378,17 +365,21 @@ class OSAC_V2X_Env(setup.gym.Env):
         rsu_pos_p = self._convert_to_pixels(self.C.RSU_POS)
         CAR_RADIUS = 5
 
+        # Draw LoS
         self._draw_los(canvas, agent_pos_p, self.car2_pos, OSACEnvConstants.LOS_COLOR) 
         self._draw_los(canvas, agent_pos_p, self.C.RSU_POS, OSACEnvConstants.LOS_COLOR) 
 
+        # RSU
         pygame.draw.rect(canvas, OSACEnvConstants.RSU_COLOR, (rsu_pos_p[0]-CAR_RADIUS, rsu_pos_p[1]-CAR_RADIUS, CAR_RADIUS*2, CAR_RADIUS*2))
         self._draw_text(canvas, "RSU", OSACEnvConstants.LABEL_COLOR, rsu_pos_p + np.array([5, 5]))
 
+        # Prediction
         predicted_car2_pos_p = self._convert_to_pixels(self.pred_pos_car2)
         pygame.draw.line(canvas, OSACEnvConstants.PREDICTED_CAR_COLOR, predicted_car2_pos_p+[-3,-3], predicted_car2_pos_p+[3,3], 2)
         pygame.draw.line(canvas, OSACEnvConstants.PREDICTED_CAR_COLOR, predicted_car2_pos_p+[3,-3], predicted_car2_pos_p+[-3,3], 2)
         self._draw_text(canvas, "PREDICTED", OSACEnvConstants.LABEL_COLOR, predicted_car2_pos_p + np.array([-30, -30]))
         
+        # Car 2
         pygame.draw.circle(canvas, OSACEnvConstants.CAR_2_COLOR, car2_pos_p, CAR_RADIUS)
         self._draw_text(canvas, "Car 2 (Rx)", OSACEnvConstants.LABEL_COLOR, car2_pos_p + np.array([10, 5]))
         
@@ -404,6 +395,7 @@ class OSAC_V2X_Env(setup.gym.Env):
         end_point_echo_p = car2_pos_p + (30*OSACEnvConstants.PIXELS_PER_METER) * np.array([np.cos(echo_angle), -np.sin(echo_angle)])
         pygame.draw.line(canvas, OSACEnvConstants.ECHO_BEAM_COLOR, car2_pos_p, end_point_echo_p.astype(int), 2)
 
+        # Agent
         pygame.draw.circle(canvas, OSACEnvConstants.CAR_1_COLOR, agent_pos_p, CAR_RADIUS)
         self._draw_text(canvas, "Agent", OSACEnvConstants.LABEL_COLOR, agent_pos_p + np.array([5, 5]))
         

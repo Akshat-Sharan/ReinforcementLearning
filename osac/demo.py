@@ -1,68 +1,85 @@
-# demo.py
-
+import osac_env04  # Make sure this imports your Phase 3 script (e.g., osac_env.py)
 import gymnasium as gym
-from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_vec_env
-from osac_env02 import OSAC_V2X_Env # Make sure this path is correct
+from stable_baselines3 import PPO, DDPG, SAC, A2C
+from sb3_contrib import TRPO
 import numpy as np
+import time
 
-# --- 1. Configuration ---
-# ⚠️ IMPORTANT: Update this path to your trained model file
-MODEL_PATH = "osac_beam_tracker_ppo.zip" 
-DEMO_EPISODES = 5 # Number of episodes to run for demonstration
-MAX_STEPS_PER_EPISODE = 500 # Should match your C.MAX_EPISODE_STEPS
+# --- CONFIGURATION ---
+# Select the algorithm/model you want to demo
+# Options: "PPO", "DDPG", "SAC", "A2C", "TRPO"
+ALGO_NAME = "SAC" 
+
+# Path to the saved model file (ensure the name matches your saved file)
+MODEL_PATH = f"osac_beam_tracker_{ALGO_NAME.lower()}" 
+
+# Number of episodes to watch
+NUM_DEMO_EPISODES = 25
 
 def run_demonstration():
-    """
-    Loads the trained PPO model and runs a visualization loop.
-    """
-    print(f"--- Loading trained model from: {MODEL_PATH} ---")
+    # 1. Create the Environment (Phase 3)
+    env = osac_env04.OSAC_V2X_Env()
     
-    # 1. Initialize the Environment with the "human" render mode
-    # We use a single, non-vectorized environment for visualization
+    # 2. Load the Trained Model
+    print(f"--- Loading trained model from: {MODEL_PATH}.zip ---")
+    
     try:
-        env = OSAC_V2X_Env(render_mode="human")
-    except Exception as e:
-        print(f"Error initializing environment for rendering: {e}")
-        print("Ensure 'render_mode=\"human\"' is supported and Pygame is installed.")
-        return
-
-    # 2. Load the trained model
-    try:
-        model = PPO.load(MODEL_PATH, env=env)
+        if ALGO_NAME == "PPO":
+            model = PPO.load(MODEL_PATH, env=env)
+        elif ALGO_NAME == "DDPG":
+            model = DDPG.load(MODEL_PATH, env=env)
+        elif ALGO_NAME == "SAC":
+            model = SAC.load(MODEL_PATH, env=env)
+        elif ALGO_NAME == "A2C":
+            model = A2C.load(MODEL_PATH, env=env)
+        elif ALGO_NAME == "TRPO":
+            model = TRPO.load(MODEL_PATH, env=env)
+        else:
+            raise ValueError(f"Unknown Algorithm: {ALGO_NAME}")
+            
+        print("Model loaded successfully. Starting demonstration...")
+        
     except FileNotFoundError:
-        print(f"ERROR: Model file not found at {MODEL_PATH}. Did you run training.py first?")
-        env.close()
+        print(f"Error: Could not find model file '{MODEL_PATH}.zip'.")
+        print("Please check the file name or run training first.")
         return
 
-    print("Model loaded successfully. Starting demonstration...")
-    
-    # 3. Demonstration Loop
-    for episode in range(DEMO_EPISODES):
+    # 3. Run Episodes
+    for episode in range(NUM_DEMO_EPISODES):
         obs, info = env.reset()
         done = False
-        truncated = False
         total_reward = 0
-        current_step = 0
-
-        while not done and not truncated and current_step < MAX_STEPS_PER_EPISODE:
-            # The model predicts the best action based on the current observation
-            action_array, _states = model.predict(obs, deterministic=True) 
-            action_int = int(action_array.item())
-            # Apply the action and step the environment
-            obs, reward, done, truncated, info = env.step(action_int)
-            total_reward += reward
-            current_step += 1
+        steps = 0
+        
+        print(f"\n--- Episode {episode + 1} ---")
+        
+        while not done:
+            # Predict the action
+            # deterministic=True is safer for demos (uses the mean action)
+            action, _states = model.predict(obs, deterministic=True)
             
-            # Render the environment frame
+            # --- CRITICAL FIX FOR CONTINUOUS ACTIONS ---
+            # We do NOT convert to int. We pass the array directly.
+            # action is typically shape (2,) e.g., [-0.54, 0.12]
+            
+            # Step the environment
+            obs, reward, terminated, truncated, info = env.step(action)
+            
+            # Update loop variables
+            done = terminated or truncated
+            total_reward += reward
+            steps += 1
+            
+            # Render the environment (Pygame window)
             env.render()
+            
+            # Optional: Slow down the demo slightly if it's too fast
+            # time.sleep(0.01) 
 
-        print(f"Episode {episode + 1}: Total Reward = {total_reward:.2f}, Steps = {current_step}")
+        print(f"Episode {episode + 1}: Total Reward = {total_reward:.2f}, Steps = {steps}")
 
-    # 4. Clean up
+    print("\nDemonstration Complete.")
     env.close()
 
 if __name__ == "__main__":
-    # Ensure your trained model is saved as "osac_ppo_model.zip" 
-    # and is in the same directory, or update MODEL_PATH.
     run_demonstration()
