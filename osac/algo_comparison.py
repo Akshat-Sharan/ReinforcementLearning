@@ -1,4 +1,6 @@
 import os
+from datetime import datetime
+
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -110,6 +112,14 @@ plt.legend(loc='lower right', frameon=True, fontsize=12, shadow=True)
 plt.tight_layout()
 
 # Save
-plt.savefig("final_learning_curve.png", dpi=300)
-print("\nSuccess! Plot saved as 'final_learning_curve.png'")
+out_dir = "results"
+os.makedirs(out_dir, exist_ok=True)
+
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+filename = f"final_learning_curve_{timestamp}.png"
+save_path = os.path.join(out_dir, filename)
+
+plt.savefig(save_path, dpi=300)
+print(f"\nSuccess! Plot saved as `{save_path}`")
+
 plt.show()

@@ -1,4 +1,4 @@
-import osac_env04
+import osac_env
 import gymnasium as gym
 from stable_baselines3 import SAC
 import time

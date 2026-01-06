@@ -1,4 +1,4 @@
-import osac_env04  # Make sure this imports your Phase 3 script (e.g., osac_env.py)
+import osac_env  # Make sure this imports your Phase 3 script (e.g., osac_env.py)
 import gymnasium as gym
 from stable_baselines3 import PPO, DDPG, SAC, A2C
 from sb3_contrib import TRPO
@@ -8,18 +8,18 @@ import time
 # --- CONFIGURATION ---
 # Select the algorithm/model you want to demo
 # Options: "PPO", "DDPG", "SAC", "A2C", "TRPO"
-ALGO_NAME = "SAC" 
+ALGO_NAME = "SAC"
 
 # Path to the saved model file (ensure the name matches your saved file)
-MODEL_PATH = f"osac_beam_tracker_{ALGO_NAME.lower()}" 
+MODEL_PATH = f"models/osac_beam_tracker_{ALGO_NAME.lower()}"
 
 # Number of episodes to watch
 NUM_DEMO_EPISODES = 25
 
 def run_demonstration():
     # 1. Create the Environment (Phase 3)
-    env = osac_env04.OSAC_V2X_Env()
-    
+    env = osac_env.OSAC_V2X_Env()
+
     # 2. Load the Trained Model
     print(f"--- Loading trained model from: {MODEL_PATH}.zip ---")
     

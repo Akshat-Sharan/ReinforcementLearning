@@ -3,7 +3,7 @@ import numpy as np
 import seaborn as sns
 from stable_baselines3 import PPO, DDPG, SAC
 from sb3_contrib import TRPO
-import osac_env04  # Ensure this matches your environment file
+import osac_env  # Ensure this matches your environment file
 
 # --- CONFIGURATION ---
 NUM_EPISODES = 4000   # The "100 times" aggregation you asked for
