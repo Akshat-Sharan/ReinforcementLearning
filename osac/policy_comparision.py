@@ -93,7 +93,9 @@ for bar in bars:
 plt.tight_layout()
 
 # Save
-filename = 'final_phase6_comparison.png'
+out_dir = os.path.join(os.path.dirname(__file__), "results")
+os.makedirs(out_dir, exist_ok=True)
+filename = os.path.join(out_dir, 'final_phase6_comparison.png')
 plt.savefig(filename, dpi=300)
 print(f"\nPlot saved successfully as '{filename}'")
 plt.show()

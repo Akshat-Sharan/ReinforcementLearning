@@ -112,7 +112,7 @@ plt.legend(loc='lower right', frameon=True, fontsize=12, shadow=True)
 plt.tight_layout()
 
 # Save
-out_dir = "results"
+out_dir = os.path.join(os.path.dirname(__file__), "results")
 os.makedirs(out_dir, exist_ok=True)
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

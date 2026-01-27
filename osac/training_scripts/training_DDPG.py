@@ -1,19 +1,22 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import osac_env
 import gymnasium as gym
 import numpy as np
 from stable_baselines3 import DDPG
 from stable_baselines3.common.noise import NormalActionNoise
 import time
-import os
 
 # 1. Setup Logging Directory
-logdir = "osac_rl_log_DDPG"
+logdir = "../osac_rl_log_DDPG"
 
 if not os.path.exists(logdir):
     os.makedirs(logdir)
 
 # 2. Environment
-env = osac_env04.OSAC_V2X_Env()
+env = osac_env.OSAC_V2X_Env()
 
 # Verify Action Space
 print(f"Action Space: {env.action_space}")
@@ -64,7 +67,7 @@ start_time = time.time()
 model.learn(total_timesteps=TOTAL_TIMESTEPS, tb_log_name="DDPG_Phase3")
 
 # 6. Save Final Model
-save_name = "osac_beam_tracker_ddpg"
+save_name = "../osac_beam_tracker_ddpg"
 model.save(save_name)
 
 end_time = time.time()

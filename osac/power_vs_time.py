@@ -118,7 +118,8 @@ plt.legend(loc='lower right', frameon=True, fontsize=12, shadow=True)
 plt.xlim(0, 20)
 
 plt.tight_layout()
-filename = "rigorous_power_vs_time.png"
+filename = os.path.join(os.path.dirname(__file__), "results", "rigorous_power_vs_time.png")
+os.makedirs(os.path.dirname(filename), exist_ok=True)
 plt.savefig(filename, dpi=300)
 print(f"\nSuccess! Plot saved as '{filename}'")
 plt.show()
