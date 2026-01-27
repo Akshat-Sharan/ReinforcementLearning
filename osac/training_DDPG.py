@@ -1,4 +1,4 @@
-import osac_env04
+import osac_env
 import gymnasium as gym
 import numpy as np
 from stable_baselines3 import DDPG

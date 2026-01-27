@@ -1,4 +1,4 @@
-import osac_env04
+import osac_env
 import gymnasium as gym
 from sb3_contrib import TRPO  # Import from contrib
 import time
