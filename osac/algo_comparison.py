@@ -11,12 +11,13 @@ from tensorboard.backend.event_processing.event_accumulator import EventAccumula
 
 # 1. Map your Algorithm Names to their Log Directories
 # Check your folder to ensure these names match exactly!
+script_dir = os.path.dirname(os.path.abspath(__file__))
 LOG_DIRS = {
-    "SAC":  "osac_rl_log_SAC",
-    "PPO":  "osac_rl_log_PPO_02",  # Updated to match your latest run
+    "SAC":  os.path.join(script_dir, "osac_rl_log_SAC"),
+    "PPO":  os.path.join(script_dir, "osac_rl_log_PPO_02"),  # Updated to match your latest run
     # If you didn't save logs for DDPG/TRPO, comment them out or point to correct folder
-    "TRPO": "osac_rl_log_TRPO",    
-    "DDPG": "osac_rl_log_DDPG"
+    "TRPO": os.path.join(script_dir, "osac_rl_log_TRPO"),    
+    "DDPG": os.path.join(script_dir, "osac_rl_log_DDPG")
 }
 
 # 2. Colors for the paper
@@ -112,7 +113,7 @@ plt.legend(loc='lower right', frameon=True, fontsize=12, shadow=True)
 plt.tight_layout()
 
 # Save
-out_dir = "results"
+out_dir = os.path.join(os.path.dirname(__file__), "results")
 os.makedirs(out_dir, exist_ok=True)
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

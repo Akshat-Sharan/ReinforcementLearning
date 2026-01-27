@@ -10,11 +10,13 @@ NUM_EPISODES = 4000   # The "100 times" aggregation you asked for
 MAX_STEPS = 400      # 20 seconds of simulation time
 NORMALIZE = True     # Map [-100, 100] dB to [0, 1] scale
 
+import os
+script_dir = os.path.dirname(os.path.abspath(__file__))
 MODELS = {
-    "DDPG": "osac_beam_tracker_ddpg",
-    "PPO":  "osac_beam_tracker_ppo02",
-    "TRPO": "osac_beam_tracker_trpo",
-    "SAC":  "osac_beam_tracker_sac"
+    "DDPG": os.path.join(script_dir, "models", "osac_beam_tracker_ddpg"),
+    "PPO":  os.path.join(script_dir, "models", "osac_beam_tracker_ppo02"),
+    "TRPO": os.path.join(script_dir, "models", "osac_beam_tracker_trpo"),
+    "SAC":  os.path.join(script_dir, "models", "osac_beam_tracker_sac")
 }
 
 COLORS = {
@@ -37,7 +39,7 @@ def normalize_snr(snr_array):
     return np.clip(norm, 0, 1)
 
 def get_time_aligned_stats(algo_name, model_path):
-    env = osac_env04.OSAC_V2X_Env()
+    env = osac_env.OSAC_V2X_Env()
     print(f"--- Processing {algo_name} ({NUM_EPISODES} episodes) ---")
     
     try:
@@ -118,7 +120,8 @@ plt.legend(loc='lower right', frameon=True, fontsize=12, shadow=True)
 plt.xlim(0, 20)
 
 plt.tight_layout()
-filename = "rigorous_power_vs_time.png"
+filename = os.path.join(os.path.dirname(__file__), "results", "rigorous_power_vs_time.png")
+os.makedirs(os.path.dirname(filename), exist_ok=True)
 plt.savefig(filename, dpi=300)
 print(f"\nSuccess! Plot saved as '{filename}'")
 plt.show()

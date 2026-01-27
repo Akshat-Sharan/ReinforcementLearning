@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import osac_env
 import time
 
@@ -5,7 +9,7 @@ import time
 from stable_baselines3 import PPO
 
 # Recreate the environment instance
-env = osac_env04.OSAC_V2X_Env()
+env = osac_env.OSAC_V2X_Env()
 
 # Initialize the PPO agent with a Multi-Layer Perceptron (MlpPolicy)
 # policy: "MlpPolicy" (a standard feedforward neural network)
@@ -32,7 +36,7 @@ PPO_params = {
     "batch_size": 128 # increased from 64 (optional, but good for GPU)
 }
 
-model = PPO("MlpPolicy", env, verbose=1, **PPO_params,tensorboard_log="./osac_rl_log_PPO_02/", device = "cuda")
+model = PPO("MlpPolicy", env, verbose=1, **PPO_params,tensorboard_log="../osac_rl_log_PPO_02/", device = "cuda")
 
 print("\n--- Starting RL Training ---")
 start_time = time.time()
@@ -41,7 +45,7 @@ start_time = time.time()
 model.learn(total_timesteps=5000000) 
 
 # Save the trained model
-model.save("osac_beam_tracker_ppo02")
+model.save("../osac_beam_tracker_ppo02")
 print("--- Training Complete. Model Saved. ---")
 
 end_time = time.time()

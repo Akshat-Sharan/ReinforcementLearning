@@ -1,17 +1,20 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import osac_env
 import gymnasium as gym
 from sb3_contrib import TRPO  # Import from contrib
 import time
-import os
 
 # 1. Setup Logging Directory
-logdir = "osac_rl_log_TRPO"
+logdir = "../osac_rl_log_TRPO"
 
 if not os.path.exists(logdir):
     os.makedirs(logdir)
 
 # 2. Environment
-env = osac_env04.OSAC_V2X_Env()
+env = osac_env.OSAC_V2X_Env()
 
 # 3. Model
 print("--- Initializing TRPO Model ---")
@@ -47,7 +50,7 @@ start_time = time.time()
 model.learn(total_timesteps=TOTAL_TIMESTEPS, tb_log_name="TRPO_Phase3")
 
 # 5. Save Final Model
-save_name = "osac_beam_tracker_trpo"
+save_name = "../osac_beam_tracker_trpo"
 model.save(save_name)
 
 end_time = time.time()

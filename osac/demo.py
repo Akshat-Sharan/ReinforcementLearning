@@ -10,8 +10,12 @@ import time
 # Options: "PPO", "DDPG", "SAC", "A2C", "TRPO"
 ALGO_NAME = "SAC"
 
+import os
+
 # Path to the saved model file (ensure the name matches your saved file)
-MODEL_PATH = f"models/osac_beam_tracker_{ALGO_NAME.lower()}"
+# Use absolute path relative to this script to ensure it works from any CWD
+script_dir = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(script_dir, "models", f"osac_beam_tracker_{ALGO_NAME.lower()}")
 
 # Number of episodes to watch
 NUM_DEMO_EPISODES = 25
